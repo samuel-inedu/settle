@@ -2,15 +2,15 @@
 
 AI-powered payments and escrow inside WhatsApp, powered by **Busha**.
 
-A freelancer types *"invoice $250 to 0803… for logo design"*. Their client taps one link, pays by Naira bank transfer or USDT without leaving WhatsApp, and the money sits in escrow. When the work is delivered, the client taps **Release funds** and approves it with a PIN in a native WhatsApp Flow. The freelancer gets a receipt and their wallet balance updates.
+A freelancer types _"invoice $250 to 0803… for logo design"_. Their client taps one link, pays by Naira bank transfer or USDT without leaving WhatsApp, and the money sits in escrow. When the work is delivered, the client taps **Release funds** and approves it with a PIN in a native WhatsApp Flow. The freelancer gets a receipt and their wallet balance updates.
 
 It combines the three payment patterns that work in Nigeria today without Meta's native WhatsApp Pay:
 
-| # | Pattern | Where in the code |
-|---|---------|-------------------|
-| 1 | **Dynamic payment details in chat**: Busha generates a one-time NGN bank account or USDT deposit address, sent as copyable messages plus a one-tap checkout button that opens in WhatsApp's in-app browser | `Agent.sendCollection`, `BushaProvider.createCollection` |
-| 2 | **Pre-funded wallet + PIN in a WhatsApp Flow**: release escrow, send money and withdraw, each approved in a native pop-up form | `Agent.requirePin`, `flows/*.json` |
-| 3 | **Crypto wallet deep links**: a "Pay in wallet" button opens MetaMask / Trust Wallet with the amount and address pre-filled (EIP-681) | `src/core/deeplinks.ts`, `GET /pay/:ref/crypto` |
+| #   | Pattern                                                                                                                                                                                                    | Where in the code                                        |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| 1   | **Dynamic payment details in chat**: Busha generates a one-time NGN bank account or USDT deposit address, sent as copyable messages plus a one-tap checkout button that opens in WhatsApp's in-app browser | `Agent.sendCollection`, `BushaProvider.createCollection` |
+| 2   | **Pre-funded wallet + PIN in a WhatsApp Flow**: release escrow, send money and withdraw, each approved in a native pop-up form                                                                             | `Agent.requirePin`, `flows/*.json`                       |
+| 3   | **Crypto wallet deep links**: a "Pay in wallet" button opens MetaMask / Trust Wallet with the amount and address pre-filled (EIP-681)                                                                      | `src/core/deeplinks.ts`, `GET /pay/:ref/crypto`          |
 
 ## Architecture
 
@@ -74,9 +74,24 @@ A full demo in the simulator:
 
 Run the tests with `npm test`. `npm run typecheck` checks types.
 
+## Check your setup
+
+```bash
+npm run doctor
+```
+
+Run this after each stage below. It reads (never sends) from each configured service and tells you what's broken and how to fix it:
+
+- **WhatsApp:** whether the token works and has not expired, whether `WHATSAPP_BOT_NUMBER` matches the real number, and whether each Flow ID exists and has no validation errors.
+- **Public URL:** whether `PUBLIC_BASE_URL` reaches your running server through the tunnel.
+- **Busha:** whether the key works (it reads your balances) and whether the webhook secret is set.
+- **Claude:** whether the key works and the model is available.
+
+It exits with code 1 if anything fails.
+
 ## Going live on WhatsApp (about 20 minutes, free)
 
-1. **Meta app.** Go to [developers.facebook.com](https://developers.facebook.com) → Create App → Business → add **WhatsApp**. On *API Setup*, copy the temporary access token and the **Phone number ID**, and add your own phone as a test recipient.
+1. **Meta app.** Go to [developers.facebook.com](https://developers.facebook.com) → Create App → Business → add **WhatsApp**. On _API Setup_, copy the temporary access token and the **Phone number ID**, and add your own phone as a test recipient.
 2. **Tunnel.** Run `ngrok http 3000` (or `cloudflared tunnel --url localhost:3000`) and put the HTTPS URL in `PUBLIC_BASE_URL`.
 3. **Webhook.** In WhatsApp → Configuration, set the callback to `https://<tunnel>/webhooks/whatsapp`, set the verify token to the value of `WHATSAPP_VERIFY_TOKEN`, and subscribe to **messages**. Put the App Secret (App settings → Basic) in `WHATSAPP_APP_SECRET`.
 4. **Flows.** In WhatsApp Manager → Flows → Create Flow, paste `flows/pin_flow.json`, save it, and copy its ID into `WHATSAPP_PIN_FLOW_ID`. Repeat with `flows/set_pin_flow.json` for `WHATSAPP_SET_PIN_FLOW_ID`. With `WHATSAPP_FLOW_MODE=draft` you can test without publishing. If these IDs are empty, the bot asks for the PIN as a chat reply instead.
@@ -97,11 +112,13 @@ The integration follows docs.busha.io. These points are documented loosely there
 - **Encoding of `x-bu-signature`.** The code accepts both base64 and hex.
 - **Whether `deposit.success` also fires for these payments.** Both it and `payment_request.completed` are handled, and events are deduplicated.
 
+To check them quickly, add `BUSHA_DEBUG=1` to `.env`. The server then logs every Busha request and response, and every incoming webhook with its signature header. Do one `fund ₦1000` from WhatsApp and the log shows the real field names.
+
 Keep `BUSHA_MODE=mock` for a stage demo if the sandbox is flaky. The mock checkout page fires correctly signed webhooks through the same code path.
 
 ## Claude for natural language (optional)
 
-Exact commands are handled by a fast deterministic parser. If you set `ANTHROPIC_API_KEY`, anything else, such as *"abeg bill Tunde 50k for the website wey I finish yesterday"*, goes to Claude (`claude-opus-5-5`, low effort). Claude returns a zod-validated intent through structured outputs. Server-side model fallback is turned on for refusals. If Claude fails, the bot falls back to the rules parser and replies with the help menu.
+Exact commands are handled by a fast deterministic parser. If you set `ANTHROPIC_API_KEY`, anything else, such as _"abeg bill Tunde 50k for the website wey I finish yesterday"_, goes to Claude (`claude-opus-5-5`, low effort). Claude returns a zod-validated intent through structured outputs. Server-side model fallback is turned on for refusals. If Claude fails, the bot falls back to the rules parser and replies with the help menu.
 
 ## Security notes
 

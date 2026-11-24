@@ -4,14 +4,23 @@ import type { Store } from "./core/store.js";
 import type { PaymentProvider } from "./busha/provider.js";
 import { MockBushaProvider } from "./busha/provider.js";
 import { Agent } from "./agent/agent.js";
-import { parseWhatsAppWebhook, verifyMetaSignature } from "./whatsapp/webhook.js";
+import {
+  parseWhatsAppWebhook,
+  verifyMetaSignature,
+} from "./whatsapp/webhook.js";
 import { renderCryptoPayPage } from "./core/deeplinks.js";
 import { formatMoney } from "./core/money.js";
 import { ConsoleSender, type WhatsAppSender } from "./whatsapp/client.js";
 
 type RawRequest = Request & { rawBody?: Buffer };
 
-export function createServer(opts: { cfg: Config; store: Store; agent: Agent; payments: PaymentProvider; wa?: WhatsAppSender }) {
+export function createServer(opts: {
+  cfg: Config;
+  store: Store;
+  agent: Agent;
+  payments: PaymentProvider;
+  wa?: WhatsAppSender;
+}) {
   const { cfg, store, agent, payments, wa } = opts;
   const app = express();
   app.use(
@@ -24,11 +33,20 @@ export function createServer(opts: { cfg: Config; store: Store; agent: Agent; pa
   );
   app.use(express.urlencoded({ extended: false }));
 
-  app.get("/health", (_req, res) => res.json({ ok: true, whatsapp: cfg.whatsapp.mode, payments: payments.name }));
+  app.get("/health", (_req, res) =>
+    res.json({
+      ok: true,
+      whatsapp: cfg.whatsapp.mode,
+      payments: payments.name,
+    }),
+  );
 
   // ---- WhatsApp Cloud API webhook -----------------------------------------
   app.get("/webhooks/whatsapp", (req, res) => {
-    if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === cfg.whatsapp.verifyToken) {
+    if (
+      req.query["hub.mode"] === "subscribe" &&
+      req.query["hub.verify_token"] === cfg.whatsapp.verifyToken
+    ) {
       return res.status(200).send(String(req.query["hub.challenge"]));
     }
     res.sendStatus(403);
@@ -36,18 +54,32 @@ export function createServer(opts: { cfg: Config; store: Store; agent: Agent; pa
 
   app.post("/webhooks/whatsapp", (req, res) => {
     const raw = (req as RawRequest).rawBody ?? Buffer.from("");
-    if (cfg.whatsapp.appSecret && !verifyMetaSignature(raw, req.header("x-hub-signature-256"), cfg.whatsapp.appSecret)) {
+    if (
+      cfg.whatsapp.appSecret &&
+      !verifyMetaSignature(
+        raw,
+        req.header("x-hub-signature-256"),
+        cfg.whatsapp.appSecret,
+      )
+    ) {
       return res.sendStatus(401);
     }
     res.sendStatus(200); // ack fast, Meta retries slow webhooks
     for (const msg of parseWhatsAppWebhook(req.body)) {
-      agent.handleInbound(msg).catch((err) => console.error("[whatsapp] handler crashed", err));
+      agent
+        .handleInbound(msg)
+        .catch((err) => console.error("[whatsapp] handler crashed", err));
     }
   });
 
   // ---- Busha webhook --------------------------------------------------------
   app.post("/webhooks/busha", async (req, res) => {
     const raw = (req as RawRequest).rawBody ?? Buffer.from("");
+    if (cfg.busha.debug) {
+      console.log(
+        `[busha:debug] webhook x-bu-signature=${req.header("x-bu-signature")}\n  body: ${raw.toString("utf8")}`,
+      );
+    }
     if (!payments.verifyWebhook(raw, req.header("x-bu-signature"))) {
       console.warn("[busha] rejected webhook with bad signature");
       return res.sendStatus(401);
@@ -65,8 +97,11 @@ export function createServer(opts: { cfg: Config; store: Store; agent: Agent; pa
   app.get("/pay/:ref/crypto", (req, res) => {
     const { escrow, topup } = store.findByProviderRef(req.params.ref);
     const owner = escrow ?? topup;
-    const c = owner?.collections.find((x) => x.providerRef === req.params.ref)?.crypto;
-    if (!owner || !c) return res.status(404).send("Payment not found or expired.");
+    const c = owner?.collections.find(
+      (x) => x.providerRef === req.params.ref,
+    )?.crypto;
+    if (!owner || !c)
+      return res.status(404).send("Payment not found or expired.");
     res.type("html").send(
       renderCryptoPayPage({
         ref: owner.id,
@@ -86,8 +121,11 @@ export function createServer(opts: { cfg: Config; store: Store; agent: Agent; pa
       const { escrow, topup } = store.findByProviderRef(req.params.ref);
       const owner = escrow ?? topup;
       if (!owner) return res.status(404).send("Unknown payment");
-      const paid = escrow ? escrow.status !== "AWAITING_PAYMENT" : topup!.status === "COMPLETED";
-      res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mock Checkout</title>
+      const paid = escrow
+        ? escrow.status !== "AWAITING_PAYMENT"
+        : topup!.status === "COMPLETED";
+      res.type("html")
+        .send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mock Checkout</title>
 <style>:root{--bg:#f4f5f7;--card:#fff;--fg:#111;--muted:#666}@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#1a1d23;--fg:#eee;--muted:#9aa}}
 body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg)}main{max-width:420px;margin:0 auto;padding:24px 16px}
 .card{background:var(--card);border-radius:16px;padding:20px}h1{margin:4px 0}.m{color:var(--muted);font-size:14px}
@@ -100,15 +138,26 @@ ${paid ? `<p>✅ Already paid. Head back to WhatsApp.</p>` : `<form method="post
 
     app.post("/dev/simulate-payment/:ref", async (req, res) => {
       const { escrow, topup } = store.findByProviderRef(req.params.ref);
-      const { raw, signature } = mock.buildPaidWebhook(req.params.ref, (escrow ?? topup)?.id);
+      const { raw, signature } = mock.buildPaidWebhook(
+        req.params.ref,
+        (escrow ?? topup)?.id,
+      );
       // Go through the real webhook path (signature check included).
       const r = await fetch(`http://127.0.0.1:${cfg.port}/webhooks/busha`, {
         method: "POST",
-        headers: { "content-type": "application/json", "x-bu-signature": signature },
+        headers: {
+          "content-type": "application/json",
+          "x-bu-signature": signature,
+        },
         body: raw,
       });
-      if (req.headers.accept?.includes("application/json")) return res.json({ ok: r.ok });
-      res.type("html").send(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:system-ui;padding:24px;text-align:center"><h2>${r.ok ? "✅ Payment sent" : "❌ Failed"}</h2><p>Return to WhatsApp, your receipt is waiting.</p></body>`);
+      if (req.headers.accept?.includes("application/json"))
+        return res.json({ ok: r.ok });
+      res
+        .type("html")
+        .send(
+          `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:system-ui;padding:24px;text-align:center"><h2>${r.ok ? "✅ Payment sent" : "❌ Failed"}</h2><p>Return to WhatsApp, your receipt is waiting.</p></body>`,
+        );
     });
 
     app.get("/dev/escrows", (_req, res) => res.json(store.allEscrows()));

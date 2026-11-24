@@ -1,7 +1,20 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+} from "node:fs";
 import { dirname } from "node:path";
 import { randomBytes } from "node:crypto";
-import type { Escrow, PendingAction, PendingRecord, Topup, User, Withdrawal } from "./types.js";
+import type {
+  Escrow,
+  PendingAction,
+  PendingRecord,
+  Topup,
+  User,
+  Withdrawal,
+} from "./types.js";
 
 interface DbShape {
   users: Record<string, User>;
@@ -31,8 +44,18 @@ export class Store {
   private writeTimer?: NodeJS.Timeout;
 
   constructor(private file: string | null) {
-    const empty: DbShape = { users: {}, escrows: {}, topups: {}, withdrawals: {}, pending: {}, processedEvents: [] };
-    this.db = file && existsSync(file) ? { ...empty, ...JSON.parse(readFileSync(file, "utf8")) } : empty;
+    const empty: DbShape = {
+      users: {},
+      escrows: {},
+      topups: {},
+      withdrawals: {},
+      pending: {},
+      processedEvents: [],
+    };
+    this.db =
+      file && existsSync(file)
+        ? { ...empty, ...JSON.parse(readFileSync(file, "utf8")) }
+        : empty;
   }
 
   private save() {
@@ -57,7 +80,14 @@ export class Store {
   ensureUser(phone: string, name?: string): User {
     let u = this.db.users[phone];
     if (!u) {
-      u = { phone, name, pinFailures: 0, balances: { NGN: 0, USDT: 0 }, contacts: {}, createdAt: Date.now() };
+      u = {
+        phone,
+        name,
+        pinFailures: 0,
+        balances: { NGN: 0, USDT: 0 },
+        contacts: {},
+        createdAt: Date.now(),
+      };
       this.db.users[phone] = u;
     } else if (name && !u.name) {
       u.name = name;
@@ -74,7 +104,9 @@ export class Store {
   }
 
   // ---- escrows
-  createEscrow(e: Omit<Escrow, "id" | "createdAt" | "history" | "collections" | "status">): Escrow {
+  createEscrow(
+    e: Omit<Escrow, "id" | "createdAt" | "history" | "collections" | "status">,
+  ): Escrow {
     const escrow: Escrow = {
       ...e,
       id: shortId("ESC"),
@@ -102,18 +134,29 @@ export class Store {
   }
 
   escrowsFor(phone: string): Escrow[] {
+    return this.allEscrows().filter(
+      (e) => e.sellerPhone === phone || e.buyerPhone === phone,
+    );
+  }
+
+  /** Newest first. Reversing insertion order first keeps same-millisecond escrows in the right order (sort is stable). */
+  allEscrows(): Escrow[] {
     return Object.values(this.db.escrows)
-      .filter((e) => e.sellerPhone === phone || e.buyerPhone === phone)
+      .reverse()
       .sort((a, b) => b.createdAt - a.createdAt);
   }
 
-  allEscrows(): Escrow[] {
-    return Object.values(this.db.escrows).sort((a, b) => b.createdAt - a.createdAt);
-  }
-
   // ---- topups / withdrawals
-  createTopup(t: Omit<Topup, "id" | "createdAt" | "status" | "collections">): Topup {
-    const topup: Topup = { ...t, id: shortId("TOP"), status: "PENDING", collections: [], createdAt: Date.now() };
+  createTopup(
+    t: Omit<Topup, "id" | "createdAt" | "status" | "collections">,
+  ): Topup {
+    const topup: Topup = {
+      ...t,
+      id: shortId("TOP"),
+      status: "PENDING",
+      collections: [],
+      createdAt: Date.now(),
+    };
     this.db.topups[topup.id] = topup;
     this.save();
     return topup;
@@ -138,7 +181,9 @@ export class Store {
   }
 
   findWithdrawalByProviderRef(ref: string): Withdrawal | undefined {
-    return Object.values(this.db.withdrawals).find((w) => w.providerRef === ref || w.id === ref);
+    return Object.values(this.db.withdrawals).find(
+      (w) => w.providerRef === ref || w.id === ref,
+    );
   }
 
   updateWithdrawal(id: string, patch: Partial<Withdrawal>): Withdrawal {
@@ -150,15 +195,24 @@ export class Store {
 
   /** Match a Busha payment request id back to the escrow/topup it belongs to. */
   findByProviderRef(ref: string): { escrow?: Escrow; topup?: Topup } {
-    const escrow = Object.values(this.db.escrows).find((e) => e.collections.some((c) => c.providerRef === ref));
+    const escrow = Object.values(this.db.escrows).find((e) =>
+      e.collections.some((c) => c.providerRef === ref),
+    );
     if (escrow) return { escrow };
-    const topup = Object.values(this.db.topups).find((t) => t.collections.some((c) => c.providerRef === ref));
+    const topup = Object.values(this.db.topups).find((t) =>
+      t.collections.some((c) => c.providerRef === ref),
+    );
     return { topup };
   }
 
   // ---- ledger
   /** Atomic within this process: throws if insufficient funds. */
-  transfer(from: string | null, to: string | null, amount: number, currency: "NGN" | "USDT") {
+  transfer(
+    from: string | null,
+    to: string | null,
+    amount: number,
+    currency: "NGN" | "USDT",
+  ) {
     if (amount <= 0) throw new Error("amount must be positive");
     if (from) {
       const f = this.ensureUser(from);
@@ -196,7 +250,8 @@ export class Store {
   markProcessed(key: string): boolean {
     if (this.db.processedEvents.includes(key)) return false;
     this.db.processedEvents.push(key);
-    if (this.db.processedEvents.length > 5000) this.db.processedEvents.splice(0, 1000);
+    if (this.db.processedEvents.length > 5000)
+      this.db.processedEvents.splice(0, 1000);
     this.save();
     return true;
   }

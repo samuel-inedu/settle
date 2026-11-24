@@ -11,7 +11,10 @@ export function loadConfig() {
   return {
     port,
     /** Public HTTPS base URL of this server (ngrok/cloudflared in dev). Used for checkout + deep-link pages. */
-    publicBaseUrl: env("PUBLIC_BASE_URL", `http://localhost:${port}`).replace(/\/$/, ""),
+    publicBaseUrl: env("PUBLIC_BASE_URL", `http://localhost:${port}`).replace(
+      /\/$/,
+      "",
+    ),
     dataFile: env("DATA_FILE", "data/db.json"),
     /** Escrow fee charged to the seller at release, in basis points (100 = 1%). */
     escrowFeeBps: Number(env("ESCROW_FEE_BPS", "100")),
@@ -43,6 +46,8 @@ export function loadConfig() {
       webhookSecret: env("BUSHA_WEBHOOK_SECRET", "mock-webhook-secret"),
       /** Network used for USDT collection addresses (e.g. TRX, ETH, BSC, MATIC). */
       cryptoNetwork: env("BUSHA_CRYPTO_NETWORK", "TRX"),
+      /** Log every Busha request/response and webhook body, to confirm field names in the sandbox. */
+      debug: env("BUSHA_DEBUG") === "1",
     },
 
     anthropic: {
