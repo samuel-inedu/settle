@@ -1,0 +1,44 @@
+{
+  "version": "6.0",
+  "screens": [
+    {
+      "id": "CREATE_PIN",
+      "title": "Create your PIN",
+      "terminal": true,
+      "success": true,
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          { "type": "TextHeading", "text": "Secure your Settle wallet" },
+          { "type": "TextBody", "text": "You'll enter this PIN to approve every payment, release and withdrawal." },
+          {
+            "type": "TextInput",
+            "name": "pin",
+            "label": "New 4-digit PIN",
+            "input-type": "passcode",
+            "required": true,
+            "min-chars": 4,
+            "max-chars": 4
+          },
+          {
+            "type": "TextInput",
+            "name": "pin_confirm",
+            "label": "Confirm PIN",
+            "input-type": "passcode",
+            "required": true,
+            "min-chars": 4,
+            "max-chars": 4
+          },
+          {
+            "type": "Footer",
+            "label": "Save PIN",
+            "on-click-action": {
+              "name": "complete",
+              "payload": { "pin": "${form.pin}", "pin_confirm": "${form.pin_confirm}" }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

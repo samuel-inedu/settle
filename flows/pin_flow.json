@@ -1,0 +1,36 @@
+{
+  "version": "6.0",
+  "screens": [
+    {
+      "id": "PIN_ENTRY",
+      "title": "Approve payment",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "summary": { "type": "string", "__example__": "Release 250.00 USDT to Tunde for logo design" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          { "type": "TextHeading", "text": "Enter your Settle PIN" },
+          { "type": "TextBody", "text": "${data.summary}" },
+          {
+            "type": "TextInput",
+            "name": "pin",
+            "label": "4-digit PIN",
+            "input-type": "passcode",
+            "required": true,
+            "min-chars": 4,
+            "max-chars": 4,
+            "helper-text": "Settle staff will never ask for your PIN"
+          },
+          {
+            "type": "Footer",
+            "label": "Approve",
+            "on-click-action": { "name": "complete", "payload": { "pin": "${form.pin}" } }
+          }
+        ]
+      }
+    }
+  ]
+}
